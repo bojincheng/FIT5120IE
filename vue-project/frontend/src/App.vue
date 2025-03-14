@@ -1,17 +1,28 @@
 <template>
-  <img alt="Vue logo" src="./assets/logo.png">
-  <UVSearch msg="Welcome to Your Vue.js App"/>
+  <div class="main-container">
+    <header>
+      <BHeader />
+    </header>
+
+    <main class="main-box">
+      <!-- <LibraryRegistrationForm /> -->
+      <!-- <JSONLab /> -->
+      <router-view></router-view>
+    </main>
+  </div>
 </template>
 
 <script>
-import UVSearch from './components/UVSearch.vue' // 这里改为 UVSearch.vue
+// import { ref } from 'vue' 
+import BHeader from './components/BHeader.vue'
 
 export default {
   name: 'App',
   components: {
-    UVSearch // 这里改为 UVSearch
+    BHeader
   }
-}
+};
+
 </script>
 
 <style>
