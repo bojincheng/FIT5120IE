@@ -1,19 +1,79 @@
 <script setup>
 import { ref } from "vue";
-import backgroundVideo from "@/assets/bg.mp4";
+import backgroundVideo from "@/assets/protection.mp4";
 
-// Skin types
+// Skin types with enhanced recommendations
 const skinTones = ref([
-  { color: "#F2E2DF", label: "Very Fair", advice: "Use SPF 50+, avoid midday sun." },
-  { color: "#E6DCCA", label: "Fair", advice: "Use SPF 50+, reapply every 2 hours." },
-  { color: "#E8D597", label: "Light", advice: "Use SPF 30+, wear sunglasses." },
-  { color: "#E2B8A1", label: "Medium", advice: "SPF 30+, seek shade during peak hours." },
-  { color: "#B49068", label: "Tan", advice: "SPF 30, wear a hat and sunglasses." },
-  { color: "#3E3633", label: "Dark", advice: "SPF 15+, avoid prolonged exposure." }
+  {
+    color: "#F2E2DF",
+    label: "Very Fair",
+    shortAdvice: "SPF 50+, avoid midday sun.",
+    fullAdvice: "Very fair skin is extremely sensitive to UV exposure. Always use SPF 50+, wear UPF-rated clothing, and avoid direct sun between 10 AM - 4 PM.",
+    healthRisk: "⚠️ High risk of sunburn, premature aging, and skin cancer.",
+    vitaminD: "🌞 Requires more Vitamin D synthesis. Safe sun exposure: ~10-15 min before 10 AM or after 3 PM.",
+    sunscreenUsage: "💧 Use ~1 teaspoon of SPF 50+ for face and neck, reapply every 2 hours."
+  },
+  {
+    color: "#E6DCCA",
+    label: "Fair",
+    shortAdvice: "SPF 50+, reapply every 2 hours.",
+    fullAdvice: "Fair skin is prone to sunburn. Apply SPF 50+ every 2 hours, wear a hat and sunglasses, and seek shade during peak hours.",
+    healthRisk: "⚠️ High risk of sunburn, moderate risk of hyperpigmentation and skin cancer.",
+    vitaminD: "🌤️ Safe sun exposure: ~10-15 min in the morning/evening.",
+    sunscreenUsage: "💧 Use ~1.5 teaspoons of SPF 50+ for face, neck, and arms."
+  },
+  {
+    color: "#E8D597",
+    label: "Light",
+    shortAdvice: "SPF 30+, wear sunglasses.",
+    fullAdvice: "Light skin requires moderate protection. Apply SPF 30+, wear sunglasses, and limit direct exposure to intense sunlight.",
+    healthRisk: "⚠️ Moderate risk of sunburn, sunspots, and wrinkles with frequent unprotected exposure.",
+    vitaminD: "🌞 Can generate Vitamin D efficiently. Safe sun exposure: ~15-20 min.",
+    sunscreenUsage: "💧 Use ~2 teaspoons of SPF 30+ for upper body protection."
+  },
+  {
+    color: "#E2B8A1",
+    label: "Medium",
+    shortAdvice: "SPF 30+, seek shade at midday.",
+    fullAdvice: "Medium skin tones can tolerate more sunlight but still need SPF 30+, especially around midday when UV levels are high.",
+    healthRisk: "⚠️ Lower sunburn risk but prone to uneven pigmentation and premature aging.",
+    vitaminD: "🌤️ Safe sun exposure: ~20 min for optimal Vitamin D levels.",
+    sunscreenUsage: "💧 Use ~3 teaspoons of SPF 30+ for full upper body coverage."
+  },
+  {
+    color: "#B49068",
+    label: "Tan",
+    shortAdvice: "SPF 30, wear a hat.",
+    fullAdvice: "Tan skin tones have more melanin protection but should still use SPF 30 and protective clothing.",
+    healthRisk: "⚠️ Less prone to sunburn but at risk of long-term pigmentation changes and premature aging.",
+    vitaminD: "🌞 Requires ~25-30 min of sun exposure for Vitamin D synthesis.",
+    sunscreenUsage: "💧 Use ~4 teaspoons of SPF 30+ for full-body protection."
+  },
+  {
+    color: "#3E3633",
+    label: "Dark",
+    shortAdvice: "SPF 15+, avoid long exposure.",
+    fullAdvice: "Dark skin has a lower risk of sunburn but still needs SPF 15+ to prevent long-term damage.",
+    healthRisk: "⚠️ Low sunburn risk but at increased risk of Vitamin D deficiency.",
+    vitaminD: "🌞 Requires ~30-45 min of sun exposure for adequate Vitamin D synthesis.",
+    sunscreenUsage: "💧 Use ~6 teaspoons (2 tablespoons) of SPF 15+ for full-body protection."
+  }
 ]);
 
-// The skin color of the current mouseover
-const hoveredSkin = ref(null);
+const selectedSkin = ref(null);
+const showModal = ref(false);
+
+// Show full suggestions in a modal
+const openModal = (skin) => {
+  selectedSkin.value = skin;
+  showModal.value = true;
+};
+
+// Close modal
+const closeModal = () => {
+  showModal.value = false;
+  selectedSkin.value = null;
+};
 </script>
 
 <template>
@@ -33,14 +93,27 @@ const hoveredSkin = ref(null);
         :key="index"
         class="skin-circle"
         :style="{ backgroundColor: tone.color }"
-        @mouseenter="hoveredSkin = tone"
-        @mouseleave="hoveredSkin = null"
+        @mouseenter="selectedSkin = tone"
+        @mouseleave="selectedSkin = null"
+        @click="openModal(tone)"
       >
-        <!-- Tooltip below the color -->
-        <div v-if="hoveredSkin === tone" class="tooltip">
+        <!-- Tooltip below the skin tone -->
+        <div v-if="selectedSkin === tone" class="tooltip">
           <strong>{{ tone.label }}</strong><br />
-          {{ tone.advice }}
+          {{ tone.shortAdvice }}
         </div>
+      </div>
+    </div>
+
+    <!-- Modal (Popup) for Full Advice -->
+    <div v-if="showModal" class="modal-overlay" @click="closeModal">
+      <div class="modal-content" @click.stop>
+        <h3>{{ selectedSkin.label }}</h3>
+        <p><strong>🌞 Sun Protection Advice:</strong> {{ selectedSkin.fullAdvice }}</p>
+        <p><strong>⚠️ Health Risks:</strong> {{ selectedSkin.healthRisk }}</p>
+        <p><strong>🌤️ Vitamin D Guidance:</strong> {{ selectedSkin.vitaminD }}</p>
+        <p><strong>💧 Sunscreen Usage:</strong> {{ selectedSkin.sunscreenUsage }}</p>
+        <button @click="closeModal">Close</button>
       </div>
     </div>
   </div>
@@ -100,44 +173,27 @@ const hoveredSkin = ref(null);
   transform: scale(1.2);
 }
 
-/* Tooltip BELOW the skin tone */
-.tooltip {
-  position: absolute;
-  top: 60px; /* Moves tooltip below the circle */
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 8px 12px;
-  border-radius: 6px;
-  white-space: nowrap;
-  font-size: 14px;
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+/* Modal Content */
+.modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
   text-align: center;
-  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
-  opacity: 0;
-  transition: opacity 0.3s ease-in-out;
-  pointer-events: none;
-}
-
-.skin-circle:hover .tooltip {
-  opacity: 1;
-}
-
-/* Responsive Design */
-@media screen and (max-width: 600px) {
-  .skin-tone-container {
-    gap: 12px;
-  }
-
-  .skin-circle {
-    width: 40px;
-    height: 40px;
-  }
-
-  .tooltip {
-    font-size: 12px;
-    padding: 6px 10px;
-    top: 50px; /* Adjust for smaller screens */
-  }
+  max-width: 400px;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
 }
 </style>
