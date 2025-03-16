@@ -1,5 +1,5 @@
 <script setup>
-import backgroundVideo from "@/assets/bg.mp4"; // Import video
+import backgroundVideo from "@/assets/sunny_photo.mp4"; // Import video
 import { useRouter } from "vue-router";
 
 const router = useRouter();
