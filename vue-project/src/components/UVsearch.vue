@@ -14,19 +14,19 @@ const uvIndex = ref(null);
 const longitude = ref(null);
 // Stores latitude
 const latitude = ref(null);
+// Stores suburb name
+const suburbName = ref(""); 
 // Stores UV protection suggestion
 const uvSuggestion = ref("");   
 // Stores error messages
 const errorMessage = ref(null);
+// Stores last updated time
+const lastUpdated = ref(null);
 
-// Function to fetch UV Index from backend
+// Function to fetch UV Index from backend (by suburb/postcode)
 const fetchUVIndex = async () => {
   if (!locationInput.value.trim()) {
     errorMessage.value = "Please enter a location or postcode.";
-    uvIndex.value = null;
-    longitude.value = null;
-    latitude.value = null;
-    uvSuggestion.value = "";
     return;
   }
 
@@ -34,12 +34,7 @@ const fetchUVIndex = async () => {
   const regex = /^[a-zA-Z0-9\s-]+$/;
   if (!regex.test(locationInput.value)) {
     errorMessage.value = "Invalid location name. Please avoid special characters.";
-    uvIndex.value = null;
-    longitude.value = null;
-    latitude.value = null;
-    uvSuggestion.value = "";
-    isInputVisible.value = true; // Keep the input field visible
-    return; // Do not proceed with API call if invalid input
+    return;
   }
 
   // Hide the input field once search is done
@@ -55,37 +50,70 @@ const fetchUVIndex = async () => {
       uvIndex.value = data.uv_index;
       longitude.value = data.lon;
       latitude.value = data.lat;
+      suburbName.value = data.suburb;
       uvSuggestion.value = data.suggestion;
+      lastUpdated.value = new Date().toLocaleTimeString();
       errorMessage.value = null;
     } else {
-      uvIndex.value = null;
-      longitude.value = null;
-      latitude.value = null;
-      uvSuggestion.value = "";
-      // If the error is "Location not found", show input again and clear the field
-      if (data.error === "Location not found") {
-        isInputVisible.value = true; // Show input field again
-        locationInput.value = ""; // Clear the input field
-      }
       errorMessage.value = data.error || "No UV data found.";
+      isInputVisible.value = true; // Show input field again
+      locationInput.value = ""; // Clear the input field
     }
   } catch (error) {
-    uvIndex.value = null;
-    longitude.value = null;
-    latitude.value = null;
-    uvSuggestion.value = "";
     errorMessage.value = "Error fetching UV data.";
-    console.error("Fetch error:", error);
+    isInputVisible.value = true;
   }
 };
 
-// Function to reset the input for new location entry
+// Function to fetch UV Index using GPS
+const fetchUVIndexFromGPS = () => {
+  if (!navigator.geolocation) {
+    errorMessage.value = "Geolocation is not supported by your browser.";
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      const userLat = position.coords.latitude;
+      const userLon = position.coords.longitude;
+
+      try {
+        const response = await fetch(
+          `http://localhost:5000/get-uv-index?lat=${userLat}&lon=${userLon}`
+        );
+        const data = await response.json();
+
+        if (response.ok) {
+          uvIndex.value = data.uv_index;
+          longitude.value = userLon;
+          latitude.value = userLat;
+          suburbName.value = data.suburb;
+          uvSuggestion.value = data.suggestion;
+          lastUpdated.value = new Date().toLocaleTimeString();
+          isInputVisible.value = false;
+          errorMessage.value = null;
+        } else {
+          errorMessage.value = data.error || "No UV data found.";
+        }
+      } catch (error) {
+        errorMessage.value = "Error fetching UV data.";
+      }
+    },
+    () => {
+      errorMessage.value = "Location access denied. Please enter a location manually.";
+    }
+  );
+};
+
+// Function to reset input
 const resetInput = () => {
   locationInput.value = "";
   uvIndex.value = null;
   longitude.value = null;
   latitude.value = null;
+  suburbName.value = "";
   uvSuggestion.value = "";
+  lastUpdated.value = null;
   errorMessage.value = null;
   isInputVisible.value = true; // Show input field again
 };
@@ -103,23 +131,23 @@ const resetInput = () => {
 
     <!-- Search Box -->
     <div class="search-container">
-      <!-- Conditionally render input box and search button -->
       <input v-if="isInputVisible" v-model="locationInput" placeholder="Enter suburb or postcode" />
-      <button v-if="isInputVisible" @click="fetchUVIndex">Search</button> <!-- Hide after searching -->
+      <button v-if="isInputVisible" @click="fetchUVIndex">Search</button>
+      <button v-if="isInputVisible" @click="fetchUVIndexFromGPS">Use My Location</button>
+    </div>
+
+    <!-- Display Error Message -->
+    <div v-if="errorMessage" class="error-message">
+      <p>{{ errorMessage }}</p>
+      <button @click="resetInput">Try Again</button>
     </div>
 
     <!-- Display UV Index -->
     <div v-if="uvIndex !== null" class="uv-result">
-      <p>UV Index for "{{ locationInput }}": <strong>{{ uvIndex }}</strong></p>
-      <p><strong>Protection Suggestion:</strong> {{ uvSuggestion }}</p> <!-- Display UV suggestion -->
-      <button @click="resetInput">Search New Location</button> <!-- Button for new search -->
-    </div>
-    
-    <!-- Display Error Message -->
-    <div v-if="errorMessage" class="error-message">
-      <p>{{ errorMessage }}</p>
-      <!-- Button to re-search if error occurs -->
-      <button v-if="errorMessage" @click="resetInput">Re-search</button>
+      <p>UV Index for "{{ suburbName }}": <strong>{{ uvIndex }}</strong></p>
+      <p><strong>Protection Suggestion:</strong> {{ uvSuggestion }}</p>
+      <p>Last Updated: <strong>{{ lastUpdated }}</strong></p>
+      <button @click="resetInput">Search New Location</button>
     </div>
   </div>
 </template>
@@ -216,3 +244,9 @@ const resetInput = () => {
   background-color: #e65c00;
 }
 </style>
+
+
+
+
+
+
