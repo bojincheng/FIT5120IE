@@ -50,8 +50,8 @@ const fetchUVIndex = async () => {
       longitude.value = null;
       latitude.value = null;
       uvSuggestion.value = "";
-      // If the error is "Location not found in database", show input again and clear the field
-      if (data.error === "Location not found in database") {
+      // If the error is "Location not found", show input again and clear the field
+      if (data.error === "Location not found") {
         isInputVisible.value = true; // Show input field again
         locationInput.value = ""; // Clear the input field
       }

@@ -33,3 +33,5 @@ npm run build
 ```sh
 npm run lint
 ```
+#
+For more details(especially backend configurations), please refer to the tech document as a guidance.
