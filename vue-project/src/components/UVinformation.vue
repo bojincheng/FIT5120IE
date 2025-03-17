@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
-import backgroundVideo from "@/assets/bg.mp4"; // Our beautiful background video
+import backgroundVideo from "../assets/bg.mp4"; // Our beautiful background video
 
 // State management - keeping track of what the user is looking at
 // I spent ages figuring out the best tab structure for this page!
