@@ -3,7 +3,7 @@
     <!-- Main navigation bar that stays fixed at the bottom of the screen -->
     <nav class="bottom-nav">
       <!-- Home navigation item -->
-      <router-link to="/" class="nav-item" active-class="active">
+      <router-link to="/Home" class="nav-item" active-class="active">
         <div class="nav-icon">🏠</div>
         <div class="nav-label">Home</div>
       </router-link>
