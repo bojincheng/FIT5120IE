@@ -3,17 +3,18 @@ import UVsearch from '../components/UVchart.vue'//change here (UVchart  or  UVse
 import Home from '../components/Home.vue'
 import Skinsearch from '@/components/Skinsearch.vue'
 import UVinformation from '@/components/UVinformation.vue'
+import UV_Final from '@/components/UV_Final.vue'
 
 const routes = [
   {
-    path: '/Home',
+    path: '/',
     name: 'Home',
     component: Home
   },
   {
-    path: '/UVsearch',
-    name: 'UVsearch',
-    component: UVsearch
+    path: '/UV_Final',
+    name: 'UV_Final',
+    component: UV_Final
   },
   {
     path: '/Skinsearch',

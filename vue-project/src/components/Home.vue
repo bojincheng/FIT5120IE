@@ -6,7 +6,7 @@ const router = useRouter();
 
 // Navigate to specific pages
 const goToUVSearch = () => {
-  router.push("/UVSearch");
+  router.push("/UV_Final");
 };
 
 const goToSkinSearch = () => {

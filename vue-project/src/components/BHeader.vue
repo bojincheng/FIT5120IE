@@ -3,10 +3,10 @@
     <header class="header">
       <ul class="nav">
         <li class="nav-item">
-          <router-link to="/Home" class="nav-link">Home</router-link>
+          <router-link to="/" class="nav-link">Home</router-link>
         </li>
         <li class="nav-item">
-          <router-link to="/UVsearch" class="nav-link">UVsearch</router-link>
+          <router-link to="/UV_Final" class="nav-link">UV_Final</router-link>
         </li>
         <li class="nav-item">
           <router-link to="/Skinsearch" class="nav-link">Skinsearch</router-link>
