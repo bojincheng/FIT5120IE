@@ -72,7 +72,7 @@ def get_uv_index():
             return jsonify({"error": f"Failed to fetch UV index from API. Status: {response.status_code}"}), 500
         uv_data = response.json()
         uv_index = uv_data.get("value")
-        # UV protection suggestions
+        # UV protection suggestions based on the UV index
         if uv_index <= 2:
             suggestion = "Minimal protection needed, but sunscreen recommended for prolonged exposure."
         elif uv_index <= 5:
