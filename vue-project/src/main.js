@@ -14,6 +14,6 @@ app.use(PrimeVue,{
 })
 app.use(router)
 
-app.mount('#app')
+//app.mount('#app')
 
-//createApp(App).mount('#app')
+createApp(App).mount('#app')
