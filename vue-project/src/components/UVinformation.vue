@@ -3,7 +3,6 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import backgroundVideo from "@/assets/bg.mp4"; // Our beautiful background video
 
 // State management - keeping track of what the user is looking at
-// I spent ages figuring out the best tab structure for this page!
 const activeTab = ref('resources'); // 'resources', 'uv-types', 'vitamin-d'
 const isAnimating = ref(false);
 const currentUVType = ref('uva');
@@ -12,7 +11,7 @@ const showUVInfo = ref(false);
 const mainContent = ref(null);
 
 // Resources data with additional metadata and animation info
-// I researched all these organizations to make sure we're providing the best resources
+// Jim researched all these organizations to make sure we're providing the best resources
 const resources = [
   {
     name: "Cancer Council Australia",
@@ -53,7 +52,6 @@ const resources = [
 ];
 
 // Australian locations with UV data
-// I had to look up real UV data for these cities - Australia has crazy high UV levels!
 const locations = [
   { id: 'sydney', name: 'Sydney', uva: 8, uvb: 6, uvc: 0, vitaminD: 'High' },
   { id: 'melbourne', name: 'Melbourne', uva: 7, uvb: 5, uvc: 0, vitaminD: 'Moderate' },

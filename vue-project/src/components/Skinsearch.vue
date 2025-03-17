@@ -3,7 +3,6 @@ import { ref, computed, onMounted, nextTick } from "vue";
 import backgroundVideo from "@/assets/protection.mp4"; // Our beautiful background video
 
 // Skin types with enhanced recommendations based on research
-// I spent weeks researching dermatology papers to get these recommendations right!
 const skinTones = ref([
   {
     id: 1,
