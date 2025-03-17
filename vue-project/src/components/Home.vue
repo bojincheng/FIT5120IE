@@ -1,5 +1,5 @@
 <script setup>
-import backgroundVideo from "@/assets/Front_Page.mp4"; // Background video for that eye-catching first impression
+import backgroundVideo from "../assets/Front_Page.mp4"; // Background video for that eye-catching first impression
 import { ref, onMounted } from 'vue';
 
 // Animation state variables - keeping track of what's visible when
