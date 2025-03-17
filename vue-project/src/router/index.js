@@ -1,8 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import UVsearch from '../components/UVsearch.vue'//change here (UVchart  or  UVsearch)
 import Home from '../components/Home.vue'
-import Skinsearch from '@/components/Skinsearch.vue'
-import UVinformation from '@/components/UVinformation.vue'
+import Skinsearch from '../components/Skinsearch.vue'
+import UVinformation from '../components/UVinformation.vue'
 
 const routes = [
   {
