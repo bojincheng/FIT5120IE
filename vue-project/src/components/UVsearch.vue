@@ -1,162 +1,153 @@
 <script setup>
-import { ref, onMounted } from "vue";
-import backgroundVideo from "@/assets/sun_shine.mp4";
+import { ref } from "vue";
+// Import background video
+import backgroundVideo from "../assets/bg.mp4"; 
 
-const API_KEY = "8f28012836cadd0c0a2ca733ff0fcae8"; // API Key
-const locationInput = ref(""); // User input location
-const currentUV = ref(null); // UV Index value
-const cityName = ref(""); // City name
-const errorMessage = ref(null); // Error message
-const recommendation = ref(""); // UV protection advice
-const lastUpdated = ref(""); // Last updated timestamp
+// Stores user input (suburb name or postcode)
+const locationInput = ref("");
+// Boolean to control whether the input field is visible
+const isInputVisible = ref(true); 
 
-// Get UV Index by manually entering a city or suburb
-const fetchUVData = async () => {
-  if (!locationInput.value.trim() || /[^a-zA-Z\s]/.test(locationInput.value)) {
-    errorMessage.value = "Invalid location name. Please enter a valid city.";
-    resetData();
+// Stores fetched UV Index
+const uvIndex = ref(null);   
+// Stores longitude
+const longitude = ref(null);
+// Stores latitude
+const latitude = ref(null);
+// Stores suburb name
+const suburbName = ref(""); 
+// Stores UV protection suggestion
+const uvSuggestion = ref("");   
+// Stores error messages
+const errorMessage = ref(null);
+// Stores last updated time
+const lastUpdated = ref(null);
+
+// Function to fetch UV Index from backend (by suburb/postcode)
+const fetchUVIndex = async () => {
+  if (!locationInput.value.trim()) {
+    errorMessage.value = "Please enter a location or postcode.";
     return;
   }
 
+  // Check for special characters before sending request
+  const regex = /^[a-zA-Z0-9\s-]+$/;
+  if (!regex.test(locationInput.value)) {
+    errorMessage.value = "Invalid location name. Please avoid special characters.";
+    return;
+  }
+
+  // Hide the input field once search is done
+  isInputVisible.value = false;
+
   try {
-    // Get location coordinates
-    const geoResponse = await fetch(
-      `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(
-        locationInput.value
-      )}&limit=1&appid=${API_KEY}`
+    const response = await fetch(
+      `http://localhost:5000/get-uv-index?location=${encodeURIComponent(locationInput.value)}`
     );
-    const geoData = await geoResponse.json();
 
-    if (!geoData.length) {
-      errorMessage.value = "Location not found.";
-      resetData();
-      return;
+    const data = await response.json();
+    if (response.ok) {
+      uvIndex.value = data.uv_index;
+      longitude.value = data.lon;
+      latitude.value = data.lat;
+      suburbName.value = data.suburb;
+      uvSuggestion.value = data.suggestion;
+      lastUpdated.value = new Date().toLocaleTimeString();
+      errorMessage.value = null;
+    } else {
+      errorMessage.value = data.error || "No UV data found.";
+      isInputVisible.value = true; // Show input field again
+      locationInput.value = ""; // Clear the input field
     }
-
-    const { lat, lon, name } = geoData[0];
-    cityName.value = name;
-
-    // Get UV Index
-    await fetchUVIndex(lat, lon);
   } catch (error) {
-    showError("Error fetching UV data.");
+    errorMessage.value = "Error fetching UV data.";
+    isInputVisible.value = true;
   }
 };
 
-// Get UV Index using GPS location
-const fetchUVByGPS = () => {
+// Function to fetch UV Index using GPS
+const fetchUVIndexFromGPS = () => {
   if (!navigator.geolocation) {
-    showError("Geolocation is not supported by your browser.");
+    errorMessage.value = "Geolocation is not supported by your browser.";
     return;
   }
 
   navigator.geolocation.getCurrentPosition(
     async (position) => {
-      const { latitude, longitude } = position.coords;
-      cityName.value = "Current Location";
-      await fetchUVIndex(latitude, longitude);
+      const userLat = position.coords.latitude;
+      const userLon = position.coords.longitude;
+
+      try {
+        const response = await fetch(
+          `http://localhost:5000/get-uv-index?lat=${userLat}&lon=${userLon}`
+        );
+        const data = await response.json();
+
+        if (response.ok) {
+          uvIndex.value = data.uv_index;
+          longitude.value = userLon;
+          latitude.value = userLat;
+          suburbName.value = data.suburb;
+          uvSuggestion.value = data.suggestion;
+          lastUpdated.value = new Date().toLocaleTimeString();
+          isInputVisible.value = false;
+          errorMessage.value = null;
+        } else {
+          errorMessage.value = data.error || "No UV data found.";
+        }
+      } catch (error) {
+        errorMessage.value = "Error fetching UV data.";
+      }
     },
     () => {
-      showError("Location access denied. Please enter a city manually.");
+      errorMessage.value = "Location access denied. Please enter a location manually.";
     }
   );
 };
 
-// Fetch UV Index Data
-const fetchUVIndex = async (lat, lon) => {
-  try {
-    const uvResponse = await fetch(
-      `https://api.openweathermap.org/data/2.5/uvi?lat=${lat}&lon=${lon}&appid=${API_KEY}`
-    );
-    const uvData = await uvResponse.json();
-
-    if (uvResponse.ok && uvData.value !== undefined) {
-      currentUV.value = uvData.value;
-      recommendation.value = getUVRecommendation(currentUV.value);
-      lastUpdated.value = new Date().toLocaleTimeString();
-      errorMessage.value = null;
-    } else {
-      throw new Error("UV data not found.");
-    }
-  } catch (error) {
-    showError("Error retrieving UV data.");
-  }
+// Function to reset input
+const resetInput = () => {
+  locationInput.value = "";
+  uvIndex.value = null;
+  longitude.value = null;
+  latitude.value = null;
+  suburbName.value = "";
+  uvSuggestion.value = "";
+  lastUpdated.value = null;
+  errorMessage.value = null;
+  isInputVisible.value = true; // Show input field again
 };
-
-// Get UV Index color coding
-const getUVColor = (index) => {
-  if (index < 3) return "green";
-  if (index < 6) return "yellow";
-  if (index < 8) return "orange";
-  if (index < 11) return "red";
-  return "purple";
-};
-
-// Provide sun protection recommendations
-const getUVRecommendation = (index) => {
-  if (index < 3)
-    return "✔ Minimal protection needed. Sunscreen recommended for prolonged exposure. ☀️ Consider getting 15-30 minutes of midday sunlight for Vitamin D synthesis. Apply ~0.5 teaspoons of SPF 15+ sunscreen for face if exposed for extended periods.";
-  
-  if (index < 6)
-    return "🕶 Moderate risk: Wear sunglasses, use SPF 30+, and seek shade around midday. 🌤️ 10-15 minutes of sun exposure before 10 AM or after 3 PM can help maintain Vitamin D levels. Apply ~1 teaspoon of SPF 30+ sunscreen for face and neck.";
-
-  if (index < 8)
-    return "👕 High risk: Wear protective clothing, SPF 50+, and avoid midday sun (10 AM - 3 PM). 🌞 Limited sun exposure in the morning is advised for Vitamin D. Apply ~1.5 teaspoons of SPF 50+ sunscreen for face, neck, and arms.";
-
-  if (index < 11)
-    return "🌞 Very High risk: Limit outdoor exposure, SPF 50+, wear a wide-brimmed hat and sunglasses. ☀️ Vitamin D can be maintained through diet and supplements. Apply ~3 teaspoons (1 tablespoon) of SPF 50+ sunscreen for full upper body protection.";
-
-  return "🚨 Extreme risk! Avoid direct sun exposure, use SPF 50+, reapply sunscreen every 2 hours. 🌥️ Vitamin D should be obtained from diet or supplements in such conditions. Apply at least 6 teaspoons (2 tablespoons) of SPF 50+ sunscreen for full body protection.";
-};
-
-// Show error messages
-const showError = (message) => {
-  errorMessage.value = message;
-  resetData();
-};
-
-// Reset UV data
-const resetData = () => {
-  currentUV.value = null;
-  recommendation.value = "UV protection tips unavailable. Check again later.";
-  lastUpdated.value = "";
-};
-
 </script>
 
 <template>
   <div class="homepage">
     <!-- Background Video -->
-    <video autoplay loop muted playsinline class="background-video">
+    <video autoplay loop muted class="background-video">
       <source :src="backgroundVideo" type="video/mp4" />
     </video>
 
-    <!-- Search & GPS Buttons -->
+    <!-- Title -->
+    <h1 class="fade-in">Welcome to SunSense</h1>
+
+    <!-- Search Box -->
     <div class="search-container">
-      <input v-model="locationInput" placeholder="Enter city or postcode" />
-      <button @click="fetchUVData">Search</button>
-      <button class="gps-btn" @click="fetchUVByGPS">Use Current Location</button>
+      <input v-if="isInputVisible" v-model="locationInput" placeholder="Enter suburb or postcode" />
+      <button v-if="isInputVisible" @click="fetchUVIndex">Search</button>
+      <button v-if="isInputVisible" @click="fetchUVIndexFromGPS">Use My Location</button>
     </div>
 
-    <!-- UV Data Display -->
-    <div class="uv-container">
-      <div v-if="currentUV !== null" class="uv-card">
-        <h2>{{ cityName }}</h2>
-        <p class="uv-index" :style="{ color: getUVColor(currentUV) }">
-          UV Index: {{ currentUV }}
-        </p>
-        <p class="last-updated">Last updated: {{ lastUpdated }}</p>
-      </div>
-    </div>
-
-    <!-- UV Protection Recommendation -->
-    <div v-if="currentUV !== null" class="recommendation-box">
-      <p>{{ recommendation }}</p>
-    </div>
-
-    <!-- Error Message -->
+    <!-- Display Error Message -->
     <div v-if="errorMessage" class="error-message">
       <p>{{ errorMessage }}</p>
+      <button @click="resetInput">Try Again</button>
+    </div>
+
+    <!-- Display UV Index -->
+    <div v-if="uvIndex !== null" class="uv-result">
+      <p>UV Index for "{{ suburbName }}": <strong>{{ uvIndex }}</strong></p>
+      <p><strong>Protection Suggestion:</strong> {{ uvSuggestion }}</p>
+      <p>Last Updated: <strong>{{ lastUpdated }}</strong></p>
+      <button @click="resetInput">Search New Location</button>
     </div>
   </div>
 </template>
@@ -173,90 +164,89 @@ const resetData = () => {
   z-index: -1;
 }
 
+/* Title */
+.fade-in {
+  font-size: 2.5rem;
+  color: white;
+  text-align: center;
+  margin-top: 20vh;
+  opacity: 0;
+  animation: fadeIn 3s ease-in-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Search Container */
 .search-container {
   display: flex;
   justify-content: center;
-  align-items: center;
   margin-top: 20px;
-  gap: 10px;
 }
-
 .search-container input {
-  padding: 12px;
+  padding: 10px;
   font-size: 16px;
-  border-radius: 8px;
+  border-radius: 5px;
   border: none;
-  width: 250px;
-  outline: none;
+  margin-right: 10px;
 }
-
 .search-container button {
-  padding: 12px 18px;
+  padding: 10px 15px;
   font-size: 16px;
+  background-color: #ff6600;
+  color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 5px;
   cursor: pointer;
-  transition: all 0.3s ease-in-out;
 }
-
 .search-container button:hover {
-  transform: scale(1.05);
+  background-color: #e65c00;
 }
 
-.gps-btn {
-  background-color: #0077cc;
-  color: white;
-}
-
-.gps-btn:hover {
-  background-color: #005fa3;
-}
-
-/* UV Data */
-.uv-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-top: 30px;
-}
-
-.uv-card {
-  background: rgba(0, 0, 0, 0.6);
-  padding: 25px;
-  border-radius: 12px;
+/* UV Result */
+.uv-result {
   text-align: center;
-  color: white;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-}
-
-.uv-index {
-  font-size: 22px;
-  font-weight: bold;
-}
-
-.last-updated {
-  font-size: 14px;
-  margin-top: 5px;
-  color: lightgray;
-}
-
-/* UV advice */
-.recommendation-box {
-  background: rgba(255, 255, 255, 0.2);
-  padding: 15px;
-  border-radius: 10px;
-  text-align: center;
-  color: rgb(0, 92, 12);
   margin-top: 20px;
-  font-size: 20px; 
-  font-weight: bold; 
+  font-size: 18px;
+  color: white;
 }
+.uv-result button {
+  margin-top: 10px;
+  padding: 10px 15px;
+  background-color: #ff6600;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.uv-result button:hover {
+  background-color: #e65c00;
+}
+
 /* Error Message */
 .error-message {
   text-align: center;
   color: red;
   margin-top: 10px;
-  font-size: 16px;
+}
+.error-message button {
+  margin-top: 10px;
+  padding: 10px 15px;
+  background-color: #ff6600;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.error-message button:hover {
+  background-color: #e65c00;
 }
 </style>
+
+
+
+
+
+
