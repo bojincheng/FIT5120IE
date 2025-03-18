@@ -23,8 +23,8 @@
 </template>
 
 <script setup>
-import BHeader from "./components/BHeader.vue";
-import SunCursor from "./components/sun-cursor.vue";
+import BHeader from './components/BHeader.vue';
+import SunCursor from './components/sun-cursor.vue';
 </script>
 
 <style>
