@@ -136,3 +136,6 @@ WTForms==3.2.1
 zope.event==5.0
 zope.interface==6.2
 zstandard==0.23.0
+cryptography>=39.0.1
+psycopg2-binary
+orjson==3.8.0
