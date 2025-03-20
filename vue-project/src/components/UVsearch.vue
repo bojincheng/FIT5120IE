@@ -42,7 +42,7 @@ const fetchUVIndex = async () => {
 
   try {
     const response = await fetch(
-      `http://localhost:5000/get-uv-index?location=${encodeURIComponent(locationInput.value)}`
+      `https://fit5120ie-2.onrender.com/get-uv-index?location=${encodeURIComponent(locationInput.value)}`
     );
 
     const data = await response.json();
@@ -79,7 +79,7 @@ const fetchUVIndexFromGPS = () => {
 
       try {
         const response = await fetch(
-          `http://localhost:5000/get-uv-index?lat=${userLat}&lon=${userLon}`
+          `https://fit5120ie-2.onrender.com/get-uv-index?lat=${userLat}&lon=${userLon}`
         );
         const data = await response.json();
 
