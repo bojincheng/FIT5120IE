@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from "vue";
 // Import background video
-import backgroundVideo from "../assets/bg.mp4"; 
+import backgroundVideo from "@/assets/bg.mp4"; 
 
 // Stores user input (suburb name or postcode)
 const locationInput = ref("");
