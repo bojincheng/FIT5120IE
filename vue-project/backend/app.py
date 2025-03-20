@@ -3,11 +3,15 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import re
 from database import get_db_connection
+import os
+
 app = Flask(__name__)
 # Enable cross original resource sharing
 CORS(app)
 API_KEY = "e2f745f4f5345d28044a4f1e6b883c48"
 API_URL = "https://api.openweathermap.org/data/2.5/uvi"
+
+PORT = int(os.getenv("PORT", 5000))
 # Regex pattern to sanitize input
 def is_valid_location(location):
     return bool(re.match(r'^[a-zA-Z0-9\s-]+$', location))
@@ -93,7 +97,7 @@ def get_uv_index():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(host="0.0.0.0", port=PORT, debug=True)
 
 
 
