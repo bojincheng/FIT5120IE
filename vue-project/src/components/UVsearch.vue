@@ -1,73 +1,59 @@
 <script setup>
-import { ref, onMounted, computed } from "vue";
-import backgroundVideo from "@/assets/sun_shine.mp4";
+import { ref, onMounted, computed, watch } from "vue";
+import backgroundVideo from "@/assets/aussie_beach.mp4";
 import { Chart, registerables } from "chart.js";
 Chart.register(...registerables);
 
-// Alright, here's our OpenWeatherMap API key. I spent way too long trying to get this
-// approved - had to explain to my manager why we needed another API subscription!
-// TODO: Move this to an environment variable before we go to production
-const API_KEY = "8f28012836cadd0c0a2ca733ff0fcae8";
-
-// Setting up all our reactive state. I love Vue's composition API - so much cleaner
-// than the mess of options API I used to write. Life-changing stuff!
-const locationInput = ref(""); 
-const currentUV = ref(null); 
-const cityName = ref(""); 
-const errorMessage = ref(null); 
-const recommendation = ref(""); 
-const lastUpdated = ref(""); 
+// Setting up our reactive state variables
+const locationInput = ref("");
+const currentUV = ref(null);
+const cityName = ref("");
+const errorMessage = ref(null);
+const recommendation = ref("");
+const lastUpdated = ref(null);
 const isLoading = ref(false);
-const isVisible = ref(false); // For that fancy slide-up animation I added last week
+const isVisible = ref(false); // For that  slide-up animation
+const activeTab = ref("uv"); // Default tab is UV index, other option is "cancer"
 
-// Historical data for our chart. Users kept asking for trends, so here we go!
+// Coordinates and suburb data
+const longitude = ref(null);
+const latitude = ref(null);
+const suburbName = ref("");
+
+// Historical UV data for charts
 const historicalUVData = ref([]);
 const historicalDates = ref([]);
 
-// Better to show something realistic than a blank screen, right?
-// Each city has slightly different patterns based on their typical climate.
-const mockHistoricalData = {
-  "Melbourne": {
-    dates: ["Jan 1", "Jan 2", "Jan 3", "Jan 4", "Jan 5", "Jan 6", "Jan 7"],
-    values: [8.2, 7.9, 8.5, 9.1, 8.7, 8.3, 8.6]
-  },
-  "Sydney": {
-    dates: ["Jan 1", "Jan 2", "Jan 3", "Jan 4", "Jan 5", "Jan 6", "Jan 7"],
-    values: [9.1, 8.7, 9.3, 9.5, 8.9, 9.2, 9.4]
-  },
-  "Brisbane": {
-    dates: ["Jan 1", "Jan 2", "Jan 3", "Jan 4", "Jan 5", "Jan 6", "Jan 7"],
-    values: [10.2, 9.8, 10.5, 10.1, 9.9, 10.3, 10.6]
-  },
-  "Perth": {
-    dates: ["Jan 1", "Jan 2", "Jan 3", "Jan 4", "Jan 5", "Jan 6", "Jan 7"],
-    values: [9.5, 9.2, 9.8, 10.2, 9.7, 9.4, 9.9]
-  },
-  "Adelaide": {
-    dates: ["Jan 1", "Jan 2", "Jan 3", "Jan 4", "Jan 5", "Jan 6", "Jan 7"],
-    values: [8.7, 8.4, 8.9, 9.3, 8.8, 8.5, 8.8]
-  },
-  "Hobart": {
-    dates: ["Jan 1", "Jan 2", "Jan 3", "Jan 4", "Jan 5", "Jan 6", "Jan 7"],
-    values: [7.2, 6.9, 7.5, 7.8, 7.3, 7.0, 7.4]
-  },
-  "Darwin": {
-    dates: ["Jan 1", "Jan 2", "Jan 3", "Jan 4", "Jan 5", "Jan 6", "Jan 7"],
-    values: [11.5, 11.2, 11.8, 12.0, 11.7, 11.4, 11.9]
-  },
-  "Canberra": {
-    dates: ["Jan 1", "Jan 2", "Jan 3", "Jan 4", "Jan 5", "Jan 6", "Jan 7"],
-    values: [8.5, 8.2, 8.8, 9.0, 8.6, 8.3, 8.7]
-  },
-  "Current Location": {
-    dates: ["Jan 1", "Jan 2", "Jan 3", "Jan 4", "Jan 5", "Jan 6", "Jan 7"],
-    values: [9.0, 8.7, 9.3, 9.6, 9.2, 8.9, 9.4]
-  }
+// Australia bounding box coordinates
+// These define the geographical boundaries of Australia
+const AUS_BOUNDS = {
+  south: -43.6345972634, // Tasmania's southern point
+  north: -10.6681857235, // Cape York's northern point
+  west: 113.15930688, // Western Australia's western point
+  east: 153.63925859 // Eastern point
 };
 
-// This is where the magic happens - calculating risk levels based on UV index.
-// Took me forever to get these thresholds right after reading through WHO guidelines.
-// The colors are carefully chosen for accessibility and intuitive understanding.
+// Cancer research data for the new tab
+// This is mock data - in a real app, we'd fetch this from an API
+const cancerData = ref({
+  diagnoses: {
+    labels: ["2000", "2002", "2004", "2006", "2008", "2010", "2012", "2014", "2016", "2018", "2020", "2022"],
+    data: [8400, 9100, 9800, 10500, 11300, 12100, 12800, 13600, 14500, 15400, 16200, 17100],
+    title: "Skin Cancer Diagnoses in Australia (Per Year)"
+  },
+  deaths: {
+    labels: ["2000", "2002", "2004", "2006", "2008", "2010", "2012", "2014", "2016", "2018", "2020", "2022"],
+    data: [1200, 1280, 1350, 1430, 1520, 1610, 1680, 1750, 1830, 1920, 2010, 2100],
+    title: "Skin Cancer Deaths in Australia (Per Year)"
+  },
+  uvExposure: {
+    labels: ["Very Low", "Low", "Moderate", "High", "Very High", "Extreme"],
+    data: [5, 15, 25, 30, 20, 5],
+    title: "Population UV Exposure Distribution (%)"
+  }
+});
+
+// Compute UV risk level for visual indicators
 const uvRiskLevel = computed(() => {
   if (currentUV.value === null) return null;
   
@@ -78,19 +64,29 @@ const uvRiskLevel = computed(() => {
   return { level: 'Extreme', color: '#800080' };
 });
 
-// The main workhorse function that fetches our UV data.
-// OpenWeatherMap's API is... quirky. Had to chain requests to get what we need.
-// but it works fine for now. Don't fix what isn't broken, right?
+// Check if coordinates are within Australia
+const isLocationInAustralia = (lat, lon) => {
+  // Check if the coordinates fall within Australia's bounding box
+  return (
+    lat >= AUS_BOUNDS.south &&
+    lat <= AUS_BOUNDS.north &&
+    lon >= AUS_BOUNDS.west &&
+    lon <= AUS_BOUNDS.east
+  );
+};
+
+// Function to fetch UV Index from backend (by suburb/postcode)
+// Using the API endpoint from the second file
 const fetchUVData = async () => {
   if (!locationInput.value.trim()) {
-    errorMessage.value = "Please enter a location.";
+    errorMessage.value = "Please enter a location or postcode.";
     return;
   }
 
-  if (/[^a-zA-Z\s]/.test(locationInput.value)) {
-    // Adding this regex check saved us from some nasty injection attempts.
-    // Security first! 
-    errorMessage.value = "Invalid location name. Please enter a valid city.";
+  // Check for special characters before sending request
+  const regex = /^[a-zA-Z0-9\s-]+$/;
+  if (!regex.test(locationInput.value)) {
+    errorMessage.value = "Invalid location name. Please avoid special characters.";
     resetData();
     return;
   }
@@ -99,49 +95,49 @@ const fetchUVData = async () => {
   errorMessage.value = null;
 
   try {
-    // First, get coordinates from city name
-    // OpenWeatherMap makes us do this two-step dance instead of just giving us UV by city name 🙄
-    const geoResponse = await fetch(
-      `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(
-        locationInput.value
-      )}&limit=1&appid=${API_KEY}`
+    // Using the API endpoint from the second file
+    const response = await fetch(
+      `https://fit5120ie-2.onrender.com/get-uv-index?location=${encodeURIComponent(locationInput.value)}`
     );
-    
-    if (!geoResponse.ok) {
-      throw new Error("Network response was not ok");
-    }
-    
-    const geoData = await geoResponse.json();
 
-    if (!geoData.length) {
-      errorMessage.value = "Location not found. Please check the spelling or try another city.";
+    const data = await response.json();
+    if (response.ok) {
+      // Check if the location is in Australia
+      if (!isLocationInAustralia(data.lat, data.lon)) {
+        errorMessage.value = "SunSense is only available for Australian locations. Please enter an Australian suburb or postcode.";
+        resetData();
+        isLoading.value = false;
+        return;
+      }
+      
+      currentUV.value = data.uv_index;
+      longitude.value = data.lon;
+      latitude.value = data.lat;
+      suburbName.value = data.suburb;
+      cityName.value = data.suburb; // For consistency with the UI
+      recommendation.value = getUVRecommendation(data.uv_index);
+      lastUpdated.value = new Date().toLocaleTimeString();
+      errorMessage.value = null;
+      
+      // Generate mock historical data based on current UV
+      generateMockHistoricalData(data.suburb);
+    } else {
+      errorMessage.value = data.error || "No UV data found.";
       resetData();
-      isLoading.value = false;
-      return;
     }
-
-    const { lat, lon, name } = geoData[0];
-    cityName.value = name;
-
-    // Then fetch UV index using coordinates
-    await fetchUVIndex(lat, lon);
-    
-    // Get historical data
-    await fetchHistoricalUVData(cityName.value);
   } catch (error) {
     console.error("Error fetching UV data:", error);
-    showError("Error fetching UV data. Please try again later.");
+    errorMessage.value = "Error fetching UV data. Please check your connection and try again.";
+    resetData();
   } finally {
     isLoading.value = false;
   }
 };
 
-// Geolocation is such a handy browser API, but it comes with its quirks.
-// This function handles all the permission headaches so users don't have to.
-// The timeout is set high because some mobile devices are painfully slow.
+// Function to fetch UV Index using GPS
 const fetchUVByGPS = () => {
   if (!navigator.geolocation) {
-    showError("Geolocation is not supported by your browser.");
+    errorMessage.value = "Geolocation is not supported by your browser.";
     return;
   }
 
@@ -150,44 +146,53 @@ const fetchUVByGPS = () => {
 
   navigator.geolocation.getCurrentPosition(
     async (position) => {
+      const userLat = position.coords.latitude;
+      const userLon = position.coords.longitude;
+      
+      // Check if the user's location is in Australia before making the API call
+      if (!isLocationInAustralia(userLat, userLon)) {
+        errorMessage.value = "SunSense is only available for Australian locations. Your current location appears to be outside Australia.";
+        isLoading.value = false;
+        return;
+      }
+
       try {
-        const { latitude, longitude } = position.coords;
-        
-        // Try to get city name from coordinates
-        // This reverse geocoding is a nice touch - users like seeing their city name
-        // instead of just "Current Location"
-        const reverseGeoResponse = await fetch(
-          `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${API_KEY}`
+        // Using the API endpoint from the second file
+        const response = await fetch(
+          `https://fit5120ie-2.onrender.com/get-uv-index?lat=${userLat}&lon=${userLon}`
         );
-        
-        if (reverseGeoResponse.ok) {
-          const reverseGeoData = await reverseGeoResponse.json();
-          if (reverseGeoData.length > 0) {
-            cityName.value = reverseGeoData[0].name;
-          } else {
-            cityName.value = "Current Location";
-          }
+        const data = await response.json();
+
+        if (response.ok) {
+          currentUV.value = data.uv_index;
+          longitude.value = userLon;
+          latitude.value = userLat;
+          suburbName.value = data.suburb;
+          cityName.value = data.suburb; // For consistency with the UI
+          recommendation.value = getUVRecommendation(data.uv_index);
+          lastUpdated.value = new Date().toLocaleTimeString();
+          errorMessage.value = null;
+          
+          // Generate mock historical data based on current location
+          generateMockHistoricalData(data.suburb);
         } else {
-          cityName.value = "Current Location";
+          errorMessage.value = data.error || "No UV data found.";
+          resetData();
         }
-        
-        await fetchUVIndex(latitude, longitude);
-        await fetchHistoricalUVData(cityName.value);
       } catch (error) {
         console.error("Error fetching UV data by GPS:", error);
-        showError("Error fetching UV data. Please try again later.");
+        errorMessage.value = "Error fetching UV data. Please check your connection and try again.";
+        resetData();
       } finally {
         isLoading.value = false;
       }
     },
     (error) => {
       console.error("Geolocation error:", error);
-      showError("Location access denied. Please enter a city manually.");
+      errorMessage.value = "Location access denied. Please enter a location manually.";
       isLoading.value = false;
     },
     { 
-      // These options took some trial and error to get right
-      // Especially on older Android devices - they're so finicky!
       enableHighAccuracy: true,
       timeout: 10000,
       maximumAge: 0
@@ -195,114 +200,38 @@ const fetchUVByGPS = () => {
   );
 };
 
-// This function is a bit of a mess because OpenWeatherMap deprecated their
-// standalone UV endpoint. Had to refactor everything to use their One Call API.
-// Spent a whole day debugging this when they made the change with zero warning.
-const fetchUVIndex = async (lat, lon) => {
-  try {
-    // OpenWeatherMap has deprecated the standalone UV endpoint
-    // Using the One Call API instead which includes UV index
-    const uvResponse = await fetch(
-      `https://api.openweathermap.org/data/2.5/onecall?lat=${lat}&lon=${lon}&exclude=minutely,hourly,daily,alerts&appid=${API_KEY}&units=metric`
-    );
-    
-    if (!uvResponse.ok) {
-      throw new Error("Network response was not ok");
-    }
-    
-    const uvData = await uvResponse.json();
-
-    if (uvData.current && uvData.current.uvi !== undefined) {
-      currentUV.value = uvData.current.uvi;
-      recommendation.value = getUVRecommendation(currentUV.value);
-      lastUpdated.value = new Date().toLocaleTimeString();
-      errorMessage.value = null;
-    } else {
-      // Fallback to mock data if API doesn't return UV index
-      // This has saved us so many times during API outages!
-      currentUV.value = generateMockUVIndex();
-      recommendation.value = getUVRecommendation(currentUV.value);
-      lastUpdated.value = new Date().toLocaleTimeString() + " (Estimated)";
-      errorMessage.value = null;
-    }
-  } catch (error) {
-    console.error("Error retrieving UV data:", error);
-    
-    // Fallback to mock data if API fails
-    currentUV.value = generateMockUVIndex();
-    recommendation.value = getUVRecommendation(currentUV.value);
-    lastUpdated.value = new Date().toLocaleTimeString() + " (Estimated)";
-    errorMessage.value = null;
-  }
-};
-
-// I'm pretty proud of this function - it generates realistic UV values
-// based on time of day. Much better than just random numbers!
-const generateMockUVIndex = () => {
-  const now = new Date();
-  const hour = now.getHours();
+// Generate mock historical UV data based on location
+// In a real app, we'd fetch this from an API
+const generateMockHistoricalData = (location) => {
+  // Create dates for the past 7 days
+  const dates = [];
+  const data = [];
+  const today = new Date();
   
-  // UV index is typically highest around noon and lowest at night
-  if (hour < 6 || hour > 18) {
-    return Math.random() * 2; // Low at night
-  } else if (hour >= 10 && hour <= 14) {
-    return 5 + Math.random() * 6; // High around noon
-  } else {
-    return 2 + Math.random() * 4; // Moderate in morning/evening
+  // Base UV value on current UV with some randomness
+  const baseUV = currentUV.value || 5;
+  
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - i);
+    dates.push(date.toLocaleDateString('en-AU', { month: 'short', day: 'numeric' }));
+    
+    // Generate a value that's somewhat close to the current UV
+    // but with some daily variation
+    const variation = (Math.random() * 4) - 2; // -2 to +2
+    let value = baseUV + variation;
+    value = Math.max(0, Math.min(12, value)); // Clamp between 0 and 12
+    data.push(value.toFixed(1));
   }
+  
+  historicalDates.value = dates;
+  historicalUVData.value = data;
+  
+  // Update the chart
+  updateUVChart();
 };
 
-// This function tries to get historical data from our API first,
-// but falls back to our mock data if needed.
-// The chart looks so much better with 7 days of data rather than just today.
-const fetchHistoricalUVData = async (city) => {
-  try {
-    // Try to fetch from API first
-    const response = await fetch(`/api/uv-history?city=${encodeURIComponent(city)}`);
-    
-    if (response.ok) {
-      const data = await response.json();
-      
-      if (data && data.length) {
-        historicalUVData.value = data.map(item => item.uv_index);
-        historicalDates.value = data.map(item => item.date);
-        updateChart();
-        return;
-      }
-    }
-    
-    // Fall back to mock data if API fails or returns empty data
-    // This happens more often than I'd like to admit...
-    if (mockHistoricalData[city]) {
-      historicalDates.value = mockHistoricalData[city].dates;
-      historicalUVData.value = mockHistoricalData[city].values;
-    } else {
-      // Use Melbourne as default if city not in mock data
-      historicalDates.value = mockHistoricalData["Melbourne"].dates;
-      historicalUVData.value = mockHistoricalData["Melbourne"].values;
-    }
-    
-    updateChart();
-  } catch (error) {
-    console.error("Error fetching historical UV data:", error);
-    
-    // Fall back to mock data if API fails
-    if (mockHistoricalData[city]) {
-      historicalDates.value = mockHistoricalData[city].dates;
-      historicalUVData.value = mockHistoricalData[city].values;
-    } else {
-      // Use Melbourne as default if city not in mock data
-      historicalDates.value = mockHistoricalData["Melbourne"].dates;
-      historicalUVData.value = mockHistoricalData["Melbourne"].values;
-    }
-    
-    updateChart();
-  }
-};
-
-// These recommendations are based on WHO and Australian Cancer Council guidelines.
-// I spent a whole day researching this to make sure we're giving accurate advice.
-// Added some emoji to make it more friendly - the product team loved this touch!
+// Get UV protection recommendation based on index
 const getUVRecommendation = (index) => {
   if (index < 3)
     return "✔ Minimal protection needed. Sunscreen recommended for prolonged exposure. ☀️ Consider getting 15-30 minutes of midday sunlight for Vitamin D synthesis.";
@@ -319,28 +248,25 @@ const getUVRecommendation = (index) => {
   return "🚨 Extreme risk! Avoid direct sun exposure, use SPF 50+, reapply sunscreen every 2 hours.";
 };
 
-// Simple error handling function - keeps the code DRY
-const showError = (message) => {
-  errorMessage.value = message;
-  resetData();
-};
-
 // Reset all our data fields when we need a clean slate
 const resetData = () => {
   currentUV.value = null;
+  longitude.value = null;
+  latitude.value = null;
+  suburbName.value = "";
   recommendation.value = "";
   lastUpdated.value = "";
 };
 
-// Chart.js instance - need to keep a reference so we can destroy it
-// before creating a new one. Learned this the hard way after some
-// weird memory leaks in testing!
+// Chart instances - need to keep references so we can destroy them
+// before creating new ones
 let uvChart = null;
+let melanomaChart = null;
+let nonMelanomaChart = null;
+let uvExposureChart = null;
 
-// This function updates our chart with new data.
-// Chart.js is awesome but has some quirks - like needing to destroy
-// the old chart before creating a new one.
-const updateChart = () => {
+// Update the UV history chart
+const updateUVChart = () => {
   if (uvChart) {
     uvChart.destroy();
   }
@@ -356,10 +282,10 @@ const updateChart = () => {
         {
           label: "Historical UV Index",
           data: historicalUVData.value,
-          borderColor: "orange", // Matches our sun theme
+          borderColor: "orange",
           backgroundColor: "rgba(255, 165, 0, 0.2)",
           borderWidth: 2,
-          tension: 0.2, // Makes the line slightly curved - looks nicer
+          tension: 0.2,
           fill: true,
         },
       ],
@@ -389,7 +315,7 @@ const updateChart = () => {
       scales: {
         y: {
           beginAtZero: true,
-          suggestedMax: 12, // Most UV indexes won't go above 12
+          suggestedMax: 12,
           grid: {
             color: "rgba(0,0,0,0.1)"
           },
@@ -416,37 +342,221 @@ const updateChart = () => {
   });
 };
 
+// Initialize cancer research charts
+const initCancerCharts = () => {
+  // Only initialize if we're on the cancer tab
+  if (activeTab.value !== 'cancer') return;
+  
+  // Wait for DOM to be ready
+  setTimeout(() => {
+    // Diagnoses chart (formerly melanoma chart)
+    const diagnosesCtx = document.getElementById("diagnosesChart");
+    if (diagnosesCtx && melanomaChart === null) {
+      melanomaChart = new Chart(diagnosesCtx, {
+        type: "line",
+        data: {
+          labels: cancerData.value.diagnoses.labels,
+          datasets: [
+            {
+              label: "Number of Diagnoses",
+              data: cancerData.value.diagnoses.data,
+              borderColor: "#E74C3C",
+              backgroundColor: "rgba(231, 76, 60, 0.2)",
+              borderWidth: 2,
+              tension: 0.2,
+              fill: true,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: {
+              display: true,
+              text: cancerData.value.diagnoses.title,
+              font: {
+                size: 16
+              }
+            },
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: false,
+              grid: {
+                color: "rgba(0,0,0,0.1)"
+              }
+            },
+            x: {
+              grid: {
+                color: "rgba(0,0,0,0.1)"
+              }
+            }
+          }
+        },
+      });
+    }
+    
+    // Deaths chart (formerly non-melanoma chart)
+    const deathsCtx = document.getElementById("deathsChart");
+    if (deathsCtx && nonMelanomaChart === null) {
+      nonMelanomaChart = new Chart(deathsCtx, {
+        type: "line",
+        data: {
+          labels: cancerData.value.deaths.labels,
+          datasets: [
+            {
+              label: "Number of Deaths",
+              data: cancerData.value.deaths.data,
+              borderColor: "#3498DB",
+              backgroundColor: "rgba(52, 152, 219, 0.2)",
+              borderWidth: 2,
+              tension: 0.2,
+              fill: true,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: {
+              display: true,
+              text: cancerData.value.deaths.title,
+              font: {
+                size: 16
+              }
+            },
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: false,
+              grid: {
+                color: "rgba(0,0,0,0.1)"
+              }
+            },
+            x: {
+              grid: {
+                color: "rgba(0,0,0,0.1)"
+              }
+            }
+          }
+        },
+      });
+    }
+    
+    // UV exposure distribution chart (unchanged)
+    const uvExposureCtx = document.getElementById("uvExposureChart");
+    if (uvExposureCtx && uvExposureChart === null) {
+      uvExposureChart = new Chart(uvExposureCtx, {
+        type: "bar",
+        data: {
+          labels: cancerData.value.uvExposure.labels,
+          datasets: [
+            {
+              label: "Population Percentage",
+              data: cancerData.value.uvExposure.data,
+              backgroundColor: [
+                'rgba(60, 179, 113, 0.7)',
+                'rgba(255, 215, 0, 0.7)',
+                'rgba(255, 165, 0, 0.7)',
+                'rgba(255, 69, 0, 0.7)',
+                'rgba(255, 0, 0, 0.7)',
+                'rgba(128, 0, 128, 0.7)'
+              ],
+              borderColor: [
+                'rgb(60, 179, 113)',
+                'rgb(255, 215, 0)',
+                'rgb(255, 165, 0)',
+                'rgb(255, 69, 0)',
+                'rgb(255, 0, 0)',
+                'rgb(128, 0, 128)'
+              ],
+              borderWidth: 1
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: {
+              display: true,
+              text: cancerData.value.uvExposure.title,
+              font: {
+                size: 16
+              }
+            },
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: {
+                color: "rgba(0,0,0,0.1)"
+              }
+            },
+            x: {
+              grid: {
+                color: "rgba(0,0,0,0.1)"
+              }
+            }
+          }
+        },
+      });
+    }
+  }, 300);
+};
+
+// Watch for tab changes to initialize charts
+watch(activeTab, (newTab) => {
+  if (newTab === 'cancer') {
+    // Reset chart instances so they can be recreated
+    melanomaChart = null;
+    nonMelanomaChart = null;
+    uvExposureChart = null;
+    
+    // Initialize cancer charts
+    initCancerCharts();
+  }
+});
+
 // Set everything up when the component mounts
 onMounted(() => {
-  // Set default city - Melbourne seems like a good starting point for Australia
+  // Set default city
   cityName.value = "Melbourne";
   
-  // Fetch historical data for default city
-  fetchHistoricalUVData("Melbourne");
-  
   // Generate a mock UV index for initial display
-  // Users hate seeing empty screens, so we show something right away
-  currentUV.value = generateMockUVIndex();
+  currentUV.value = 5.2;
   recommendation.value = getUVRecommendation(currentUV.value);
   lastUpdated.value = new Date().toLocaleTimeString() + " (Estimated)";
+  
+  // Generate mock historical data
+  generateMockHistoricalData("Melbourne");
   
   // Trigger the slide-up animation after a short delay
   setTimeout(() => {
     isVisible.value = true;
-  }, 1300);
+  }, 300);
 });
 </script>
 
 <template>
   <div class="homepage">
-    <!-- Background video - adds so much life to the app!
-    Took forever to find the right one that wasn't too distracting. -->
+    <!-- Background video -->
     <video autoplay loop muted playsinline class="background-video">
       <source :src="backgroundVideo" type="video/mp4" />
     </video>
     
-    <!-- This slide-up animation gives the app a native mobile feel.
-    Users love these little touches - makes the whole experience feel premium. -->
+    <!-- Slide-up container -->
     <div class="slide-up-container" :class="{ 'visible': isVisible }">
       <div class="content-container">
         <div class="header">
@@ -454,110 +564,183 @@ onMounted(() => {
           <p class="tagline">Real-time UV protection for Australians</p>
         </div>
 
-        <!-- The search experience is critical - it needs to be obvious and frictionless.
-        I've obsessed over every pixel here to make it feel intuitive. -->
-        <div class="search-container">
-          <div class="input-wrapper">
-            <input 
-              v-model="locationInput" 
-              placeholder="Enter city name" 
-              :disabled="isLoading"
-              @keyup.enter="fetchUVData"
-            />
-            <button 
-              @click="fetchUVData"
-              :disabled="isLoading"
-              class="search-button"
-            >
-              <span v-if="!isLoading">🔍</span>
-              <span v-else class="loading-spinner">⟳</span>
-            </button>
-          </div>
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
           <button 
-            class="gps-btn" 
-            @click="fetchUVByGPS"
-            :disabled="isLoading"
+            :class="{ 'active': activeTab === 'uv' }" 
+            @click="activeTab = 'uv'"
           >
-            <span v-if="!isLoading">📍 Use Current Location</span>
-            <span v-else>
-              <span class="loading-spinner">⟳</span> Getting Location...
-            </span>
+            UV Index
+          </button>
+          <button 
+            :class="{ 'active': activeTab === 'cancer' }" 
+            @click="activeTab = 'cancer'"
+          >
+            Skin Cancer Research
           </button>
         </div>
 
-        <!-- Error messages should be clear but not alarming.
-        The red border makes it obvious something's wrong without being too harsh. -->
-        <div v-if="errorMessage" class="error-message">
-          <p>{{ errorMessage }}</p>
-        </div>
+        <!-- UV Index Tab Content -->
+        <div v-if="activeTab === 'uv'" class="tab-content">
+          <!-- Search & GPS -->
+          <div class="search-container">
+            <div class="input-wrapper">
+              <input 
+                v-model="locationInput" 
+                placeholder="Enter Australian suburb or postcode" 
+                :disabled="isLoading"
+                @keyup.enter="fetchUVData"
+              />
+              <button 
+                @click="fetchUVData"
+                :disabled="isLoading"
+                class="search-button"
+              >
+                <span v-if="!isLoading">🔍</span>
+                <span v-else class="loading-spinner">⟳</span>
+              </button>
+            </div>
+            <button 
+              class="gps-btn" 
+              @click="fetchUVByGPS"
+              :disabled="isLoading"
+            >
+              <span v-if="!isLoading">📍 Use My Location</span>
+              <span v-else>
+                <span class="loading-spinner">⟳</span> Getting Location...
+              </span>
+            </button>
+            
+            <!-- Australia-only notice -->
+            <div class="australia-notice">
+              <span class="australia-icon">🇦🇺</span>
+              <span>SunSense is available for Australian locations only</span>
+            </div>
+          </div>
 
-        <!-- The moment of truth - displaying the UV results!
-        The circular indicator was inspired by air quality apps.
-        Makes it super easy to understand at a glance. -->
-        <div v-if="currentUV !== null" class="uv-container">
-          <div class="uv-card">
-            <h2>{{ cityName }}</h2>
-            <div class="uv-display">
-              <div class="uv-meter">
-                <div class="uv-value" :style="{ backgroundColor: uvRiskLevel.color }">
-                  {{ currentUV.toFixed(1) }}
-                </div>
-                <div class="uv-label">
-                  <div class="uv-index-text">UV INDEX</div>
-                  <div class="uv-risk-level">{{ uvRiskLevel.level }}</div>
+          <!-- Error message -->
+          <div v-if="errorMessage" class="error-message">
+            <p>{{ errorMessage }}</p>
+          </div>
+
+          <!-- UV data display -->
+          <div v-if="currentUV !== null" class="uv-container">
+            <div class="uv-card">
+              <h2>{{ cityName }}</h2>
+              <div class="uv-display">
+                <div class="uv-meter">
+                  <div class="uv-value" :style="{ backgroundColor: uvRiskLevel.color }">
+                    {{ currentUV.toFixed(1) }}
+                  </div>
+                  <div class="uv-label">
+                    <div class="uv-index-text">UV INDEX</div>
+                    <div class="uv-risk-level">{{ uvRiskLevel.level }}</div>
+                  </div>
                 </div>
               </div>
+              <p class="last-updated">Last updated: {{ lastUpdated }}</p>
             </div>
-            <p class="last-updated">Last updated: {{ lastUpdated }}</p>
           </div>
-        </div>
 
-        <!-- The recommendation box is where users get actionable advice.
-        This is the real value of the site - turning data into useful guidance. -->
-        <div v-if="currentUV !== null" class="recommendation-box">
-          <h3>Protection Advice</h3>
-          <p>{{ recommendation }}</p>
+          <!-- UV protection advice -->
+          <div v-if="currentUV !== null" class="recommendation-box">
+            <h3>Protection Advice</h3>
+            <p>{{ recommendation }}</p>
+            
+            <div class="protection-icons" v-if="currentUV >= 3">
+              <div class="protection-item" v-if="currentUV >= 3">
+                <span class="icon">👒</span>
+                <span>Hat</span>
+              </div>
+              <div class="protection-item" v-if="currentUV >= 3">
+                <span class="icon">👕</span>
+                <span>Shirt</span>
+              </div>
+              <div class="protection-item" v-if="currentUV >= 3">
+                <span class="icon">🧴</span>
+                <span>Sunscreen</span>
+              </div>
+              <div class="protection-item" v-if="currentUV >= 6">
+                <span class="icon">🕶️</span>
+                <span>Sunglasses</span>
+              </div>
+              <div class="protection-item" v-if="currentUV >= 8">
+                <span class="icon">⛱️</span>
+                <span>Shade</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Historical UV data visualization -->
+          <div v-if="historicalUVData.length" class="chart-container">
+            <h3>Historical UV Index for {{ cityName }}</h3>
+            <div class="chart-wrapper">
+              <canvas id="uvChart"></canvas>
+            </div>
+          </div>
           
-          <div class="protection-icons" v-if="currentUV >= 3">
-            <div class="protection-item" v-if="currentUV >= 3">
-              <span class="icon">👒</span>
-              <span>Hat</span>
-            </div>
-            <div class="protection-item" v-if="currentUV >= 3">
-              <span class="icon">👕</span>
-              <span>Shirt</span>
-            </div>
-            <div class="protection-item" v-if="currentUV >= 3">
-              <span class="icon">🧴</span>
-              <span>Sunscreen</span>
-            </div>
-            <div class="protection-item" v-if="currentUV >= 6">
-              <span class="icon">🕶️</span>
-              <span>Sunglasses</span>
-            </div>
-            <div class="protection-item" v-if="currentUV >= 8">
-              <span class="icon">⛱️</span>
-              <span>Shade</span>
-            </div>
+          <!-- Info box -->
+          <div class="info-box">
+            <div class="info-icon">ℹ️</div>
+            <p>
+              Knowing your local UV index helps you understand your specific sun exposure risks and protection needs.
+            </p>
           </div>
         </div>
 
-        <!-- The chart adds so much value - users can see trends over time.
-        This was a feature request from our beta testers and it's been a hit! -->
-        <div v-if="historicalUVData.length" class="chart-container">
-          <h3>Historical UV Index for {{ cityName }}</h3>
-          <div class="chart-wrapper">
-            <canvas id="uvChart"></canvas>
+        <!-- Cancer Research Tab Content -->
+        <div v-if="activeTab === 'cancer'" class="tab-content">
+          <div class="cancer-research-intro">
+            <h2>Skin Cancer & UV Exposure Research</h2>
+            <p>
+              Australia has one of the highest rates of skin cancer in the world. 
+              Two in three Australians will be diagnosed with skin cancer by the age of 70.
+              The main cause is exposure to UV radiation from the sun.
+            </p>
           </div>
-        </div>
-        
-        <!-- Added this info box after user testing showed people wanted more context.
-        It's amazing how a little explanation improves user confidence! -->
-        <div class="info-box">
-          <div class="info-icon">ℹ️</div>
-          <p>
-            Knowing your local UV index helps you understand your specific sun exposure risks and protection needs.
-          </p>
+
+          <div class="chart-grid">
+            <!-- Diagnoses Chart (formerly Melanoma Chart) -->
+            <div class="chart-container">
+              <div class="chart-wrapper">
+                <canvas id="diagnosesChart"></canvas>
+              </div>
+            </div>
+
+            <!-- Deaths Chart (formerly Non-Melanoma Chart) -->
+            <div class="chart-container">
+              <div class="chart-wrapper">
+                <canvas id="deathsChart"></canvas>
+              </div>
+            </div>
+
+            <!-- UV Exposure Distribution Chart (unchanged) -->
+            <div class="chart-container full-width">
+              <div class="chart-wrapper">
+                <canvas id="uvExposureChart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="cancer-research-facts">
+            <h3>Key Facts</h3>
+            <ul>
+              <li>Skin cancer is the most common cancer diagnosed in Australia</li>
+              <li>More than 2,000 Australians die from skin cancer each year</li>
+              <li>Australia has one of the highest rates of skin cancer in the world</li>
+              <li>The majority of skin cancers are caused by exposure to UV radiation</li>
+              <li>Regular use of sunscreen can reduce melanoma risk by up to 50%</li>
+              <li>Skin cancer is one of the most preventable cancers</li>
+            </ul>
+          </div>
+
+          <div class="info-box warning">
+            <div class="info-icon">⚠️</div>
+            <p>
+              Early detection is crucial for successful treatment of skin cancer. 
+              Regular skin checks by a healthcare professional are recommended, especially for high-risk individuals.
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -565,11 +748,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* 
- * Styling this component was a journey! Started with a dark theme but pivoted
- * to this light approach for better readability in outdoor conditions.
- * The slide-up panel design gives it that native app feel users expect.
- */
+/* Base Styles */
 .homepage {
   min-height: 100vh;
   display: flex;
@@ -581,10 +760,18 @@ onMounted(() => {
   overflow: hidden;
 }
 
-/* This slide-up animation took some tweaking to get right.
- * The cubic-bezier timing function gives it that nice "bounce" at the end.
- * Makes the whole app feel more polished and interactive.
- */
+/* Background Video */
+.background-video {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -2;
+}
+
+/* Slide-up Container */
 .slide-up-container {
   width: 100%;
   transform: translateY(100%); /* Start off-screen at the bottom */
@@ -606,9 +793,10 @@ onMounted(() => {
   margin: 0 auto;
 }
 
+/* Header */
 .header {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
 
 .header h1 {
@@ -623,20 +811,47 @@ onMounted(() => {
   margin: 0;
 }
 
-.background-video {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: -2;
+/* Tab Navigation */
+.tab-navigation {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 30px;
+  border-bottom: 1px solid #ddd;
 }
 
-/* Search Container - this is the heart of the user interaction.
- * Spent a lot of time making sure the input feels responsive and the
- * buttons are big enough to tap on mobile.
- */
+.tab-navigation button {
+  padding: 12px 25px;
+  font-size: 1.1rem;
+  background: transparent;
+  color: #666;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin: 0 10px;
+}
+
+.tab-navigation button:hover {
+  color: #FF8C00;
+}
+
+.tab-navigation button.active {
+  color: #FF8C00;
+  border-bottom: 3px solid #FF8C00;
+  font-weight: 600;
+}
+
+/* Tab Content */
+.tab-content {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Search Container */
 .search-container {
   display: flex;
   flex-direction: column;
@@ -705,9 +920,22 @@ onMounted(() => {
   transform: translateY(-2px);
 }
 
-/* This spinner animation is simple but effective.
- * Users need to know something is happening when they click a button.
- */
+/* Australia-only notice */
+.australia-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 5px;
+}
+
+.australia-icon {
+  font-size: 1.2rem;
+}
+
+/* Loading Spinner */
 .loading-spinner {
   display: inline-block;
   animation: spin 1s linear infinite;
@@ -718,9 +946,7 @@ onMounted(() => {
   100% { transform: rotate(360deg); }
 }
 
-/* UV Data display - the focal point of the app.
- * The white card makes the data stand out against the background.
- */
+/* UV Data Display */
 .uv-container {
   display: flex;
   justify-content: center;
@@ -754,9 +980,6 @@ onMounted(() => {
   align-items: center;
 }
 
-/* The circular UV value display is the star of the show.
- * The color-coding makes it instantly clear how dangerous the UV level is.
- */
 .uv-value {
   font-size: 3rem;
   font-weight: bold;
@@ -794,10 +1017,7 @@ onMounted(() => {
   margin: 10px 0 0 0;
 }
 
-/* The recommendation box is where users get actionable advice.
- * The clean white background helps the text stand out.
- * I made sure the text is large enough to read outdoors in sunlight.
- */
+/* Recommendation Box */
 .recommendation-box {
   background: white;
   padding: 25px;
@@ -843,10 +1063,7 @@ onMounted(() => {
   margin-bottom: 8px;
 }
 
-/* Chart Container - this was a late addition but users love it!
- * Getting the height right was tricky - too tall and it dominates the UI,
- * too short and you can't see the trends clearly.
- */
+/* Chart Container */
 .chart-container {
   background: white;
   padding: 25px;
@@ -868,9 +1085,7 @@ onMounted(() => {
   position: relative;
 }
 
-/* Info Box - a subtle way to educate users without being preachy.
- * The blue accent color helps it stand out from the other cards.
- */
+/* Info Box */
 .info-box {
   margin-top: 30px;
   padding: 20px;
@@ -881,10 +1096,19 @@ onMounted(() => {
   border-left: 4px solid #0099cc;
 }
 
+.info-box.warning {
+  background: #fff3e0;
+  border-left: 4px solid #ff9800;
+}
+
 .info-icon {
   font-size: 1.5rem;
   margin-right: 15px;
   color: #0099cc;
+}
+
+.info-box.warning .info-icon {
+  color: #ff9800;
 }
 
 .info-box p {
@@ -893,9 +1117,7 @@ onMounted(() => {
   line-height: 1.5;
 }
 
-/* Error Message - important to make these stand out but not be alarming.
- * The red border makes it clear something's wrong without being too harsh.
- */
+/* Error Message */
 .error-message {
   text-align: center;
   background: rgba(255, 0, 0, 0.1);
@@ -911,10 +1133,67 @@ onMounted(() => {
   font-size: 1rem;
 }
 
-/* 
- * Had to make some tough decisions about what to prioritize on smaller screens.
- * Tested this on my ancient iPhone 8 to make sure it works everywhere!
- */
+/* Cancer Research Tab Styles */
+.cancer-research-intro {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.cancer-research-intro h2 {
+  font-size: 1.8rem;
+  margin-bottom: 15px;
+  color: #444;
+}
+
+.cancer-research-intro p {
+  color: #555;
+  line-height: 1.6;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+@media (min-width: 768px) {
+  .chart-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.chart-grid .full-width {
+  grid-column: 1 / -1;
+}
+
+.cancer-research-facts {
+  background: white;
+  padding: 25px;
+  border-radius: 15px;
+  margin: 20px 0;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.cancer-research-facts h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.3rem;
+  color: #FF8C00;
+}
+
+.cancer-research-facts ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.cancer-research-facts li {
+  margin-bottom: 10px;
+  color: #555;
+  line-height: 1.5;
+}
+
+/* Responsive Adjustments */
 @media (max-width: 600px) {
   .content-container {
     padding: 25px;
@@ -924,6 +1203,11 @@ onMounted(() => {
   
   .header h1 {
     font-size: 2rem;
+  }
+  
+  .tab-navigation button {
+    padding: 10px 15px;
+    font-size: 0.9rem;
   }
   
   .input-wrapper input,
